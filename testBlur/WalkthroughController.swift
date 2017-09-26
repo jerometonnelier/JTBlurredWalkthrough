@@ -33,13 +33,13 @@ struct WalkthroughItem {
     //TODO: handle an image...
     var image: UIImage?
     
-    /// the insets around the mask shapes in 4 directions
-    var maskInsets: CGFloat = 5
-    
+    /// the insets around the mask shapes
+    var sideInsets: CGFloat = 5
+    var topInsets: CGFloat = 5
     /// the cornerRadius used on roundRect mask shapes
     var cornerRadius: CGFloat = 5
     
-    init(with shape: WalkthroughShape, views: [UIView], text: String? = nil, attributedText: NSAttributedString? = nil, insets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
+    init(with shape: WalkthroughShape, views: [UIView], text: String? = nil, attributedText: NSAttributedString? = nil, topInsets: CGFloat? = nil, sideInsets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
         guard text != nil || attributedText != nil else {
             fatalError("you must provide either a text or an attributed string")
         }
@@ -47,16 +47,19 @@ struct WalkthroughItem {
         self.maskedViews = views
         self.text = text
         self.attributedText = attributedText
-        if let insets = insets {
-            maskInsets = insets
+        if let insets = sideInsets {
+            self.sideInsets = insets
+        }
+        if let insets = topInsets {
+            self.topInsets = insets
         }
         if let radius = defaultCornerRadius {
             cornerRadius = radius
         }
     }
     
-    init(with shape: WalkthroughShape, view: UIView, text: String? = nil, attributedText: NSAttributedString? = nil, insets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
-        self.init(with: shape, views: [view], text: text, attributedText: attributedText, insets: insets, defaultCornerRadius: defaultCornerRadius)
+    init(with shape: WalkthroughShape, view: UIView, text: String? = nil, attributedText: NSAttributedString? = nil, topInsets: CGFloat? = nil, sideInsets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
+        self.init(with: shape, views: [view], text: text, attributedText: attributedText, topInsets: topInsets, sideInsets: sideInsets, defaultCornerRadius: defaultCornerRadius)
     }
 }
 
@@ -104,7 +107,7 @@ class WalkthroughController: NSObject {
     
     private let closeButton: UIButton = {
         $0.translatesAutoresizingMaskIntoConstraints = false
-        $0.setImage(UIImage(named:"close"), for: .normal)
+        $0.setImage(UIImage(named:"ic_close"), for: .normal)
         $0.contentMode = .scaleAspectFit
         return $0
     } (UIButton(type: UIButtonType.custom))
@@ -115,17 +118,17 @@ class WalkthroughController: NSObject {
     } (UIPageControl(frame: CGRect(origin: .zero, size: CGSize(width: 20, height: 20))))
     private var bottomDotConstraint: NSLayoutConstraint!
     
-    func start(on view: UIView, with items: [WalkthroughItem]) {
+    func start(on controller: UIViewController, with items: [WalkthroughItem]) {
         self.items = items
         
-        visualEffectView.frame = view.bounds
-        view.addSubview(visualEffectView)
+        visualEffectView.frame = controller.view.bounds
+        controller.view.addSubview(visualEffectView)
         visualEffectView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            visualEffectView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            visualEffectView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            visualEffectView.topAnchor.constraint(equalTo: view.topAnchor),
-            visualEffectView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            visualEffectView.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+            visualEffectView.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+            visualEffectView.topAnchor.constraint(equalTo: controller.view.topAnchor),
+            visualEffectView.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor)
             ])
         
         // add the tap to next item
@@ -153,7 +156,7 @@ class WalkthroughController: NSObject {
         closeButton.addTarget(self, action: #selector(stop), for: .touchUpInside)
         NSLayoutConstraint.activate([
             closeButton.trailingAnchor.constraint(equalTo: visualEffectView.contentView.trailingAnchor, constant: -8),
-            closeButton.topAnchor.constraint(equalTo: visualEffectView.contentView.topAnchor, constant: 8),
+            closeButton.topAnchor.constraint(equalTo: controller.topLayoutGuide.bottomAnchor, constant: 8),
             closeButton.widthAnchor.constraint(equalToConstant: 20),
             closeButton.heightAnchor.constraint(equalToConstant: 20)
             ])
@@ -227,7 +230,7 @@ class WalkthroughController: NSObject {
             let transformedFrame = self.visualEffectView.convert(view.frame, from: view.superview)
             englobingRect = englobingRect.union(transformedFrame)
         }
-        let transformedFrame = englobingRect.insetBy(dx: -currentItem.maskInsets, dy: -currentItem.maskInsets)
+        let transformedFrame = englobingRect.insetBy(dx: -currentItem.sideInsets, dy: -currentItem.topInsets)
         // is used to get the frame of the mask shape (which can be really different for a circle shape)
         var targetFrame = transformedFrame
         

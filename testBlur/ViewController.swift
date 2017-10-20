@@ -30,7 +30,7 @@ class ViewController: UIViewController {
     
     override var prefersStatusBarHidden: Bool {
         get {
-            return walkthrough != nil
+            return false//walkthrough != nil
         }
     }
     
@@ -41,30 +41,36 @@ class ViewController: UIViewController {
     }
     
     func walk() {
-        
-        walkthrough = WalkthroughController()
+        let config = WalkthroughConfigurationItem(effect: .blurred(force: .dark), strokeColor:.blue, strokeMask: true)
+        walkthrough = WalkthroughController(configurationItem: config)
         // use this to animate status bar hide and present the controller
         // otherwise the first object's frame is wrong
-        UIView.animate(withDuration: 0.35, animations: {
-            self.setNeedsStatusBarAppearanceUpdate()
-        }) { (_) in
-            self.walkthrough?.blurEffect = .dark
-            var items: [WalkthroughItem] = []
-            let text = "Duis mollis, est non commodo luctus\nnisi erat porttitor ligula, eget lacinia odio sem nec elit."
-            var attr = NSMutableAttributedString(string: text)
-            var para = NSMutableParagraphStyle()
-            para.alignment = .left
-            attr.setAttributes([NSForegroundColorAttributeName : UIColor.white, NSFontAttributeName : UIFont.systemFont(ofSize: 19), NSParagraphStyleAttributeName : para], range: NSRange(location: 0, length: text.characters.count))
-            attr.setAttributes([NSForegroundColorAttributeName : UIColor.orange, NSFontAttributeName : UIFont.boldSystemFont(ofSize: 20), NSParagraphStyleAttributeName : para], range: NSRange(location: 0, length: 35))
-            
-            items.append(WalkthroughItem(with: .rect, views: [self.items[0], self.items[5], self.items[6]], attributedText: attr))
-            items.append(WalkthroughItem(with: .roundRect, view: self.items[1], text: "Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec id elit non mi porta gravida at eget metus."))
-            items.append(WalkthroughItem(with: .roundRect, view: self.items[2], text: "Aenean eu leo quam. Pellentesque ornare sem lacinia quam venenatis vestibulum. Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus."))
-            items.append(WalkthroughItem(with: .circle, view: self.items[3], text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras mattis consectetur purus sit amet fermentum. Maecenas faucibus mollis interdum. Vivamus sagittis lacus vel augue laoreet rutrum faucibus dolor auctor.", insets: 20, defaultCornerRadius: 20))
-            items.append(WalkthroughItem(with: .circle, view: self.items[4], text: "Hop"))
-            self.walkthrough?.delegate = self
-            self.walkthrough?.start(on: self.view, with: items)
-        }
+//        UIView.animate(withDuration: 0.35, animations: {
+//            self.setNeedsStatusBarAppearanceUpdate()
+//        }) { (_) in
+//            self.startWalkThrough()
+//        }
+        self.startWalkThrough()
+    }
+    
+    func startWalkThrough() {
+        
+//        self.walkthrough?.blurEffect = .dark
+        var items: [WalkthroughItem] = []
+        let text = "Duis mollis, est non commodo luctus\nnisi erat porttitor ligula, eget lacinia odio sem nec elit."
+        let attr = NSMutableAttributedString(string: text)
+        let para = NSMutableParagraphStyle()
+        para.alignment = .left
+        attr.setAttributes([NSForegroundColorAttributeName : UIColor.white, NSFontAttributeName : UIFont.systemFont(ofSize: 19), NSParagraphStyleAttributeName : para], range: NSRange(location: 0, length: text.characters.count))
+        attr.setAttributes([NSForegroundColorAttributeName : UIColor.orange, NSFontAttributeName : UIFont.boldSystemFont(ofSize: 20), NSParagraphStyleAttributeName : para], range: NSRange(location: 0, length: 35))
+        
+        items.append(WalkthroughItem(with: .rect, views: [self.items[0], self.items[5], self.items[6]], attributedText: attr))
+        items.append(WalkthroughItem(with: .roundRect, view: self.items[1], text: "Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec id elit non mi porta gravida at eget metus."))
+        items.append(WalkthroughItem(with: .roundRect, view: self.items[2], text: "Aenean eu leo quam. Pellentesque ornare sem lacinia quam venenatis vestibulum. Integer posuere erat a ante venenatis dapibus posuere velit aliquet. Fusce dapibus, tellus ac cursus commodo, tortor mauris condimentum nibh, ut fermentum massa justo sit amet risus."))
+        items.append(WalkthroughItem(with: .circle, view: self.items[3], text: "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras mattis consectetur purus sit amet fermentum. Maecenas faucibus mollis interdum. Vivamus sagittis lacus vel augue laoreet rutrum faucibus dolor auctor.", topInsets: 20, defaultCornerRadius: 20))
+        items.append(WalkthroughItem(with: .circle, view: self.items[4], text: "Hop"))
+        self.walkthrough?.delegate = self
+        self.walkthrough?.start(on: self, with: items)
     }
     
     func blurTest() {

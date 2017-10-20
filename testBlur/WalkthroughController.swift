@@ -38,8 +38,10 @@ struct WalkthroughItem {
     var topInsets: CGFloat = 5
     /// the cornerRadius used on roundRect mask shapes
     var cornerRadius: CGFloat = 5
+    /// the text to read using accessibilty
+    var accessibilityText: String?
     
-    init(with shape: WalkthroughShape, views: [UIView], text: String? = nil, attributedText: NSAttributedString? = nil, topInsets: CGFloat? = nil, sideInsets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
+    init(with shape: WalkthroughShape, views: [UIView], text: String? = nil, attributedText: NSAttributedString? = nil, accessibilityText: String? = nil, topInsets: CGFloat? = nil, sideInsets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
         guard text != nil || attributedText != nil else {
             fatalError("you must provide either a text or an attributed string")
         }
@@ -47,6 +49,7 @@ struct WalkthroughItem {
         self.maskedViews = views
         self.text = text
         self.attributedText = attributedText
+        self.accessibilityText = accessibilityText
         if let insets = sideInsets {
             self.sideInsets = insets
         }
@@ -58,36 +61,165 @@ struct WalkthroughItem {
         }
     }
     
-    init(with shape: WalkthroughShape, view: UIView, text: String? = nil, attributedText: NSAttributedString? = nil, topInsets: CGFloat? = nil, sideInsets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
-        self.init(with: shape, views: [view], text: text, attributedText: attributedText, topInsets: topInsets, sideInsets: sideInsets, defaultCornerRadius: defaultCornerRadius)
+    init(with shape: WalkthroughShape, view: UIView, text: String? = nil, attributedText: NSAttributedString? = nil, accessibilityText: String? = nil, topInsets: CGFloat? = nil, sideInsets: CGFloat? = nil, defaultCornerRadius: CGFloat? = nil) {
+        self.init(with: shape, views: [view], text: text, attributedText: attributedText, accessibilityText: accessibilityText, topInsets: topInsets, sideInsets: sideInsets, defaultCornerRadius: defaultCornerRadius)
+    }
+}
+
+struct WalkthroughConfigurationItem {
+    enum BackgroundEffect {
+        case blurred(force: Force)
+        case transparent(force: Force)
+        
+        enum Force {
+            case dark, light, extraLight
+        }
+        
+        fileprivate var backgroundColor: UIColor? {
+            switch self {
+            case .blurred:
+                return nil
+            case .transparent(let force):
+                switch force {
+                case .dark: return UIColor.black.withAlphaComponent(0.85)
+                case .light: return UIColor.white.withAlphaComponent(0.5)
+                case .extraLight: return UIColor.white.withAlphaComponent(0.75)
+                }
+            }
+        }
+        
+        fileprivate var blurEffect: UIBlurEffectStyle? {
+            switch self {
+            case .blurred(let force):
+                switch force {
+                case .dark: return .dark
+                case .light: return .light
+                case .extraLight: return .extraLight
+                }
+            case .transparent:
+                return nil
+            }
+        }
+        
+        fileprivate var defaultStrokeColor: UIColor {
+            switch self {
+            case .blurred(let force):
+                switch force {
+                case .dark: return .white
+                default: return .black
+                }
+            case .transparent(let force):
+                switch force {
+                case .dark: return .white
+                default: return .black
+                }
+            }
+        }
+        
+        fileprivate var defaultTextColor: UIColor {
+            switch self {
+            case .blurred(let force):
+                switch force {
+                case .dark: return .white
+                default: return .black
+                }
+            case .transparent(let force):
+                switch force {
+                case .dark: return .white
+                default: return .black
+                }
+            }
+        }
+        
+        fileprivate var defaultDotColor: UIColor {
+            switch self {
+            case .blurred(let force):
+                switch force {
+                case .dark: return UIColor.white.withAlphaComponent(0.3)
+                default: return UIColor.black.withAlphaComponent(0.3)
+                }
+            case .transparent(let force):
+                switch force {
+                case .dark: return UIColor.white.withAlphaComponent(0.3)
+                default: return UIColor.black.withAlphaComponent(0.3)
+                }
+            }
+        }
+        
+        fileprivate var defaultCurrentDotColor: UIColor {
+            switch self {
+            case .blurred(let force):
+                switch force {
+                case .dark: return .white
+                default: return .black
+                }
+            case .transparent(let force):
+                switch force {
+                case .dark: return .white
+                default: return .black
+                }
+            }
+        }
+    }
+    
+    let effect: BackgroundEffect
+    let backgroundColor: UIColor?
+    let textColor: UIColor
+    let strokeColor: UIColor
+    let dotColor: UIColor
+    let currentDotColor: UIColor
+    let strokeWidth: CGFloat
+    let strokeMask: Bool
+    
+    init(effect: BackgroundEffect = .blurred(force: .dark),
+         backgroundColor: UIColor? = nil,
+         textColor: UIColor? = nil,
+         strokeColor: UIColor? = nil,
+         dotColor: UIColor? = nil,
+         currentDotColor: UIColor? = nil,
+         strokeWidth: CGFloat = 2,
+         strokeMask: Bool = false) {
+        self.effect = effect
+        self.backgroundColor = backgroundColor ?? effect.backgroundColor
+        self.textColor = textColor ?? effect.defaultTextColor
+        self.strokeColor = strokeColor ?? effect.defaultStrokeColor
+        self.dotColor = dotColor ?? effect.defaultDotColor
+        self.currentDotColor = currentDotColor ?? effect.defaultCurrentDotColor
+        self.strokeWidth = strokeWidth
+        self.strokeMask = strokeMask
     }
 }
 
 class WalkthroughController: NSObject {
     /// the blur effect to apply. Setting this will change the text and stroke color
-    var blurEffect: UIBlurEffectStyle = .dark {
-        didSet {
-            switch blurEffect {
-            case .dark:
-                textColor = .white
-                strokeColor = .white
-                
-            default:
-                textColor = .black
-                strokeColor = .black
+    let configurationItem: WalkthroughConfigurationItem!
+    private lazy var visualEffectView: UIView? = {
+        switch self.configurationItem.effect {
+        case .blurred:
+            guard let blurredEffect = self.configurationItem.effect.blurEffect else {
+                return nil
             }
+            return UIVisualEffectView(effect: UIBlurEffect(style: blurredEffect))
+            
+        case .transparent:
+            guard let backgrounColor = self.configurationItem.effect.backgroundColor else {
+                return nil
+            }
+            let view = UIView()
+            view.backgroundColor = backgrounColor
+            return view
         }
-    }    
-    private lazy var visualEffectView: UIVisualEffectView = UIVisualEffectView(effect: UIBlurEffect(style: self.blurEffect))
+    }()
     //private lazy var vibrancy: UIVisualEffectView = UIVisualEffectView(effect: UIVibrancyEffect(blurEffect: UIBlurEffect(style: self.blurEffect)))
-    private lazy var maskView: UIView = UIView(frame: self.visualEffectView.frame)
+    private lazy var maskView: UIView = UIView()
     private lazy var maskLayer: CAShapeLayer = CAShapeLayer()
+    private lazy var strokeLayer = CAShapeLayer()
     
     var tapToContinueText: String = "Tapez pour passer au suivant"
     var fadeDuration: Double = 0.35
     var delegate: WalkthroughDelegate?
     
-    private let tapLabel: UILabel = {
+    let tapLabel: UILabel = {
         $0.translatesAutoresizingMaskIntoConstraints = false
         $0.textAlignment = .center
         $0.numberOfLines = 1
@@ -95,17 +227,11 @@ class WalkthroughController: NSObject {
         return $0
     } (UILabel())
     private var bottomTapLabelConstraint: NSLayoutConstraint!
-    
-    private var textColor: UIColor = .white
-    private var strokeColor: UIColor = .white
-    private var dotColor: UIColor = UIColor.white.withAlphaComponent(0.3)
-    var currentDotColor: UIColor = .white
-    
     private var items: [WalkthroughItem] = []
     // init with -1 to allow a +=1 as soon as we start the loop
     private var currentItemIndex: Int = -1
     
-    private let closeButton: UIButton = {
+    let closeButton: UIButton = {
         $0.translatesAutoresizingMaskIntoConstraints = false
         $0.setImage(UIImage(named:"ic_close"), for: .normal)
         $0.contentMode = .scaleAspectFit
@@ -118,31 +244,69 @@ class WalkthroughController: NSObject {
     } (UIPageControl(frame: CGRect(origin: .zero, size: CGSize(width: 20, height: 20))))
     private var bottomDotConstraint: NSLayoutConstraint!
     
+    private func addToVisualEffectView(_ subView: UIView) {
+        switch configurationItem.effect {
+        case .blurred:
+            guard let view = visualEffectView as? UIVisualEffectView else {
+                return
+            }
+            view.contentView.addSubview(subView)
+        case .transparent:
+            visualEffectView?.addSubview(subView)
+        }
+    }
+    
+    private func effectView() -> UIView? {
+        switch configurationItem.effect {
+        case .blurred:
+            guard let view = visualEffectView as? UIVisualEffectView else {
+                return nil
+            }
+            return view.contentView
+        case .transparent:
+            return visualEffectView
+        }
+    }
+    
+    init(configurationItem: WalkthroughConfigurationItem) {
+        self.configurationItem = configurationItem
+    }
+    
     func start(on controller: UIViewController, with items: [WalkthroughItem]) {
+        
         self.items = items
         
-        visualEffectView.frame = controller.view.bounds
-        controller.view.addSubview(visualEffectView)
-        visualEffectView.translatesAutoresizingMaskIntoConstraints = false
+        guard let visualView = visualEffectView else {
+            return
+        }
+        
+        visualView.frame = controller.view.bounds
+        controller.view.addSubview(visualView)
+        visualView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            visualEffectView.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
-            visualEffectView.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
-            visualEffectView.topAnchor.constraint(equalTo: controller.view.topAnchor),
-            visualEffectView.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor)
+            visualView.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+            visualView.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+            visualView.topAnchor.constraint(equalTo: controller.view.topAnchor),
+            visualView.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor)
             ])
         
         // add the tap to next item
         let tap = UITapGestureRecognizer(target: self, action: #selector(WalkthroughController.jumpToNextItem))
-        visualEffectView.addGestureRecognizer(tap)
+        visualView.addGestureRecognizer(tap)
         
+        maskView.frame = visualView.bounds
         maskView.backgroundColor = UIColor.black
         maskLayer.fillRule = kCAFillRuleEvenOdd
         
         // indications
-        visualEffectView.contentView.addSubview(tapLabel)
+        addToVisualEffectView(tapLabel)
         tapLabel.text = tapToContinueText
-        tapLabel.textColor = textColor
-        let margins = visualEffectView.contentView.layoutMarginsGuide
+        tapLabel.textColor = configurationItem.textColor
+        guard let contentView = effectView() else {
+            return
+        }
+        let margins = contentView.layoutMarginsGuide
+        
         bottomTapLabelConstraint = tapLabel.bottomAnchor.constraint(equalTo: margins.bottomAnchor)
         NSLayoutConstraint.activate([
             tapLabel.leadingAnchor.constraint(equalTo: margins.leadingAnchor),
@@ -151,68 +315,27 @@ class WalkthroughController: NSObject {
             tapLabel.heightAnchor.constraint(equalToConstant: 20)
             ])
         // close button
-        visualEffectView.contentView.addSubview(closeButton)
-        closeButton.tintColor = textColor
+        addToVisualEffectView(closeButton)
+        closeButton.tintColor = configurationItem.textColor
         closeButton.addTarget(self, action: #selector(stop), for: .touchUpInside)
         NSLayoutConstraint.activate([
-            closeButton.trailingAnchor.constraint(equalTo: visualEffectView.contentView.trailingAnchor, constant: -8),
+            closeButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
             closeButton.topAnchor.constraint(equalTo: controller.topLayoutGuide.bottomAnchor, constant: 8),
             closeButton.widthAnchor.constraint(equalToConstant: 20),
             closeButton.heightAnchor.constraint(equalToConstant: 20)
             ])
         // numberLabel
         if items.count > 0 {
-            visualEffectView.contentView.addSubview(dots)
+            addToVisualEffectView(dots)
             dots.numberOfPages = items.count
-            dots.pageIndicatorTintColor = dotColor
-            dots.currentPageIndicatorTintColor = currentDotColor
-            bottomDotConstraint = dots.bottomAnchor.constraint(equalTo: visualEffectView.contentView.bottomAnchor, constant: -tapLabel.frame.height - 20)
+            dots.pageIndicatorTintColor = configurationItem.dotColor
+            dots.currentPageIndicatorTintColor = configurationItem.currentDotColor
+            bottomDotConstraint = dots.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -tapLabel.frame.height - 20)
             NSLayoutConstraint.activate([
-                dots.centerXAnchor.constraint(equalTo: visualEffectView.contentView.centerXAnchor),
+                dots.centerXAnchor.constraint(equalTo: contentView.centerXAnchor),
                 self.bottomDotConstraint
                 ])
         }
-        
-        /*
-        visualEffectView.contentView.addSubview(vibrancy)
-        
-        NSLayoutConstraint.activate([
-            vibrancy.leadingAnchor.constraint(equalTo: visualEffectView.leadingAnchor),
-            vibrancy.trailingAnchor.constraint(equalTo: visualEffectView.trailingAnchor),
-            vibrancy.bottomAnchor.constraint(equalTo: visualEffectView.bottomAnchor),
-            vibrancy.topAnchor.constraint(equalTo: visualEffectView.topAnchor)
-            ])
-        
-        // indications
-        vibrancy.contentView.addSubview(tapLabel)
-        tapLabel.textColor = self.textColor
-        let margins = vibrancy.contentView.layoutMarginsGuide
-        NSLayoutConstraint.activate([
-            tapLabel.leadingAnchor.constraint(equalTo: margins.leadingAnchor),
-            tapLabel.trailingAnchor.constraint(equalTo: margins.trailingAnchor),
-            tapLabel.bottomAnchor.constraint(equalTo: margins.bottomAnchor),
-            tapLabel.heightAnchor.constraint(equalToConstant: 20)
-            ])
-        // close button
-        vibrancy.contentView.addSubview(closeButton)
-        closeButton.tintColor = textColor
-        closeButton.addTarget(self, action: #selector(stop), for: .touchUpInside)
-        NSLayoutConstraint.activate([
-            closeButton.leadingAnchor.constraint(equalTo: vibrancy.contentView.leadingAnchor, constant: 8),
-            closeButton.topAnchor.constraint(equalTo: vibrancy.contentView.topAnchor, constant: 8),
-            closeButton.widthAnchor.constraint(equalToConstant: 20),
-            closeButton.heightAnchor.constraint(equalToConstant: 20)
-            ])
-        // numberLabel
-        if items.count > 0 {
-            vibrancy.contentView.addSubview(numberLabel)
-            numberLabel.textColor = self.textColor
-            NSLayoutConstraint.activate([
-                numberLabel.trailingAnchor.constraint(equalTo: vibrancy.contentView.trailingAnchor, constant: -8),
-                numberLabel.topAnchor.constraint(equalTo: margins.topAnchor),
-                numberLabel.heightAnchor.constraint(equalToConstant: 20)
-                ])
-        }*/
         
         jumpToNextItem()
     }
@@ -224,10 +347,14 @@ class WalkthroughController: NSObject {
             return
         }
         
+        guard let visualEffectView = visualEffectView, let contentView = effectView() else {
+            return
+        }
+        
         let currentItem: WalkthroughItem = items[currentItemIndex]
         var englobingRect: CGRect = CGRect.null
         currentItem.maskedViews.forEach { (view) in
-            let transformedFrame = self.visualEffectView.convert(view.frame, from: view.superview)
+            let transformedFrame = visualEffectView.convert(view.frame, from: view.superview)
             englobingRect = englobingRect.union(transformedFrame)
         }
         let transformedFrame = englobingRect.insetBy(dx: -currentItem.sideInsets, dy: -currentItem.topInsets)
@@ -257,17 +384,24 @@ class WalkthroughController: NSObject {
         itemPath.usesEvenOddFillRule = true
         path.append(itemPath)
         maskLayer.path = path.cgPath
-        maskView.layer.mask = maskLayer
-        maskLayer.frame = maskView.bounds
-        visualEffectView.mask = maskView
+        switch configurationItem.effect {
+        case .blurred:
+            maskView.layer.mask = maskLayer
+            maskLayer.frame = maskView.bounds
+            visualEffectView.mask = maskView
+        case .transparent:
+            visualEffectView.layer.mask = maskLayer
+            maskLayer.frame = maskView.bounds
+        }
+        
         
         closeButton.isHidden = closeButton.frame.intersects(targetFrame)
         dots.isHidden = dots.frame.intersects(targetFrame)
         
         if let text = currentItem.text {
-            insertLabel(with: text, targetFrame: targetFrame, in: maskView)
+            insertLabel(with: text, accessibilityText:currentItem.accessibilityText,  targetFrame: targetFrame, in: maskView)
         } else if let attr = currentItem.attributedText {
-            insertLabel(with: attr, targetFrame: targetFrame, in: maskView)
+            insertLabel(with: attr, accessibilityText:currentItem.accessibilityText, targetFrame: targetFrame, in: maskView)
         } else {
             return
         }
@@ -276,13 +410,13 @@ class WalkthroughController: NSObject {
         if currentItemIndex == 0 {
             visualEffectView.alpha = 0
             UIView.animate(withDuration: fadeDuration, animations: {
-                self.visualEffectView.alpha = 1
+                visualEffectView.alpha = 1
             })
             
             // move the tap label if the first mask intersects with it
             if tapLabel.frame.intersects(targetFrame) {
                 bottomTapLabelConstraint.isActive = false
-                tapLabel.topAnchor.constraint(equalTo: visualEffectView.contentView.layoutMarginsGuide.topAnchor).isActive = true
+                tapLabel.topAnchor.constraint(equalTo: contentView.layoutMarginsGuide.topAnchor).isActive = true
             }
         }
         
@@ -292,39 +426,63 @@ class WalkthroughController: NSObject {
         
         // hide the text
         if currentItemIndex == 1 {
-            visualEffectView.contentView.layoutIfNeeded()
+            contentView.layoutIfNeeded()
             // since the bottomAnchor can change, we reset it here
             tapLabel.isHidden = true
             bottomDotConstraint.isActive = false
-            dots.bottomAnchor.constraint(equalTo: visualEffectView.contentView.layoutMarginsGuide.bottomAnchor).isActive = true
+            dots.bottomAnchor.constraint(equalTo: contentView.layoutMarginsGuide.bottomAnchor).isActive = true
             UIView.animate(withDuration: 0.35, delay: 0, usingSpringWithDamping: 0.6, initialSpringVelocity: 0.8, options: UIViewAnimationOptions.curveEaseInOut, animations: {
                 self.tapLabel.alpha = 0
-                self.visualEffectView.contentView.layoutIfNeeded()
+                contentView.layoutIfNeeded()
             }, completion: nil)
         }
+        
+        if configurationItem.strokeMask {
+            // add the stroke
+            let strokePath = itemPath
+            strokePath.usesEvenOddFillRule = true
+            strokeLayer.path = strokePath.cgPath
+            strokeLayer.strokeColor = configurationItem.strokeColor.cgColor
+            strokeLayer.fillColor = UIColor.clear.cgColor
+            strokeLayer.lineWidth = configurationItem.strokeWidth
+            if strokeLayer.superlayer == nil {
+                visualEffectView.layer.addSublayer(strokeLayer)
+            }
+        }
+        
         delegate?.nextStepSelected()
     }
     
     func stop() {
         UIView.animate(withDuration: fadeDuration, animations: {
-            self.visualEffectView.alpha = 0
+            self.visualEffectView?.alpha = 0
         }) { _ in
-            self.visualEffectView.removeFromSuperview()
+            self.visualEffectView?.removeFromSuperview()
             self.delegate?.didStop()
         }
     }
     
-    private func insertLabel(with attributedText: NSAttributedString, targetFrame: CGRect, in view: UIView) {
+    private func insertLabel(with attributedText: NSAttributedString, accessibilityText: String? = nil, targetFrame: CGRect, in view: UIView) {
+        
+        guard let visualEffectView = visualEffectView, let contentView = effectView() else {
+            return
+        }
+        
         let label = defaultLabel()
         label.attributedText = attributedText
         label.tag = 666
-        let margins = visualEffectView.contentView.layoutMargins
-        let aboveCenter = targetFrame.origin.y + targetFrame.height / 2.0 >= visualEffectView.contentView.center.y
-        let height: CGFloat = aboveCenter == true ? targetFrame.minY - (2 * margins.top) : visualEffectView.contentView.frame.height - targetFrame.maxY - (2 * margins.bottom)
-        let targetSize = CGSize(width: visualEffectView.contentView.frame.width - visualEffectView.contentView.layoutMargins.left - visualEffectView.contentView.layoutMargins.right, height: height)
+        let margins = contentView.layoutMargins
+        let aboveCenter = targetFrame.origin.y + targetFrame.height / 2.0 >= contentView.center.y
+        let height: CGFloat = aboveCenter == true ? targetFrame.minY - (2 * margins.top) : contentView.frame.height - targetFrame.maxY - (2 * margins.bottom)
+        let targetSize = CGSize(width: contentView.frame.width - contentView.layoutMargins.left - contentView.layoutMargins.right, height: height)
         var rect = attributedText.boundingRect(with: targetSize, options: [.usesFontLeading, .usesLineFragmentOrigin], context: nil)
         rect.size.height += 1
         label.frame = CGRect(origin: .zero, size: rect.size)
+        if let access = accessibilityText {
+            //            label.accessibilityTraits = UIAccessibilityTraitStaticText
+            label.accessibilityLabel = access
+            label.isAccessibilityElement = true
+        }
         
         // remove the previous label
         visualEffectView.subviews.filter({$0.tag == 666}).forEach { (lbl) in
@@ -339,22 +497,31 @@ class WalkthroughController: NSObject {
             ])
     }
     
-    private func insertLabel(with text: String, targetFrame: CGRect, in view: UIView) {
+    private func insertLabel(with text: String, accessibilityText: String? = nil, targetFrame: CGRect, in view: UIView) {
         let label = defaultLabel()
         label.text = text
-        insert(label: label, targetFrame: targetFrame, in: view)
+        insert(label: label, accessibilityText: accessibilityText, targetFrame: targetFrame, in: view)
     }
     
-    private func insert(label: UILabel, targetFrame: CGRect, in view: UIView) {
+    private func insert(label: UILabel, accessibilityText: String? = nil, targetFrame: CGRect, in view: UIView) {
+        guard let visualEffectView = visualEffectView, let contentView = effectView() else {
+            return
+        }
+        
         label.tag = 666
         
-        let margins = visualEffectView.contentView.layoutMargins
-        let aboveCenter = targetFrame.origin.y + targetFrame.height / 2.0 >= visualEffectView.contentView.center.y
-        let height: CGFloat = aboveCenter == true ? targetFrame.minY - (2 * margins.top) : visualEffectView.contentView.frame.height - targetFrame.maxY - (2 * margins.bottom)
-        let size = label.systemLayoutSizeFitting(CGSize(width: visualEffectView.contentView.frame.width - visualEffectView.contentView.layoutMargins.left - visualEffectView.contentView.layoutMargins.right, height: height),
+        let margins = contentView.layoutMargins
+        let aboveCenter = targetFrame.origin.y + targetFrame.height / 2.0 >= contentView.center.y
+        let height: CGFloat = aboveCenter == true ? targetFrame.minY - (2 * margins.top) : contentView.frame.height - targetFrame.maxY - (2 * margins.bottom)
+        let size = label.systemLayoutSizeFitting(CGSize(width: contentView.frame.width - contentView.layoutMargins.left - contentView.layoutMargins.right, height: height),
                                                  withHorizontalFittingPriority: UILayoutPriorityDefaultHigh,
                                                  verticalFittingPriority: UILayoutPriorityDefaultLow)
         label.frame = CGRect(origin: .zero, size: size)
+        if let access = accessibilityText {
+            //            label.accessibilityTraits = UIAccessibilityTraitStaticText
+            label.accessibilityLabel = access
+            label.isAccessibilityElement = true
+        }
         
         // remove the previous label
         visualEffectView.subviews.filter({$0.tag == 666}).forEach { (lbl) in
@@ -375,7 +542,7 @@ class WalkthroughController: NSObject {
         label.textAlignment = .center
         label.numberOfLines = 0
         label.backgroundColor = .clear
-        label.textColor = textColor
+        label.textColor = configurationItem.textColor
         return label
     }
 }
